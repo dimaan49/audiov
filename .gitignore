@@ -1,0 +1,7 @@
+*.mp3
+*.wav
+*.exe
+
+.vscode/
+build/
+release/
