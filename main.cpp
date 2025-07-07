@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <thread>
 
 
 int main()
@@ -13,13 +14,20 @@ int main()
     sf::Time currentPlayingOffset; // смещение музыки
     //bar chart
     float visualizerX = 0.f;
-    float distance_column = -3.f;
-    float column_width = 5.f;
+    float distance_column = 0.f;
+    float column_width = 1.f;
     Visualizer viz;
+    // круг
+    float circle_radius = 100.f;
+    // меню
+    std::vector<Button> main_buttons; // 1. вектор кнопок
+    std::vector<Button> menu_buttons;
 
 
 
-    sf::RenderWindow window(sf::VideoMode({window_w, window_h}), "AudioGraphic");
+    sf::RenderWindow menu_window(sf::VideoMode({window_w, window_h}), "Menu Window");
+    sf::RenderWindow main_window(sf::VideoMode({window_w, window_h}), "AudioGraphic"); //main window
+    menu_window.setVisible(false);
 
 
     // Загружаем шрифт alger
@@ -38,7 +46,6 @@ int main()
     MusicText.setFillColor(sf::Color::Magenta);
 
 
-    // Загружаем звуковой буфер (новый стиль SFML 3.0)
     sf::SoundBuffer buffer;
     if (!buffer.loadFromFile("noch.ogg")) {
         return 1;
@@ -48,64 +55,66 @@ int main()
     music.setVisualizer(&viz);
     music.play();
 
+        // кнопка
+        
+    std::string sbut1 = "Bar Chart\n";
+    std::string sbut2 = "Circle\n";
+    std::string sbut3 = "Lissajous\n";
 
-    while (window.isOpen())
+    Button but1({200.f,100.f}, {0, window_h/2-110.f}, sf::Color::Yellow, StatusFont, sbut1, sf::Color::Magenta);
+    Button but2({200.f,100.f}, {0, window_h/2}, sf::Color::Yellow, StatusFont, sbut2, sf::Color::Magenta);
+    Button but3({200.f,100.f}, {0, window_h/2+110.f}, sf::Color::Yellow, StatusFont, sbut3, sf::Color::Magenta);
+    
+    std::function<void()> f1 = [&viz]() { viz.BarChartIsActive = !viz.BarChartIsActive; };
+    std::function<void()> f2 = [&viz]() { viz.CircleIsActive = !viz.CircleIsActive; };
+    std::function<void()> f3 = [&viz]() { viz.LissajousIsActive = !viz.LissajousIsActive; };
+
+    but1.setOnClick(f1);
+    but2.setOnClick(f2);
+    but3.setOnClick(f3);
+
+    menu_buttons.push_back(but1);
+    menu_buttons.push_back(but2);
+    menu_buttons.push_back(but3);
+
+    // button to switch windows
+    bool main_visible = true;
+    Button win_switcher({100.f, 50.f}, {10.f, 10.f}, sf::Color::Green, StatusFont, "switch", sf::Color::White);
+    std::function<void()> f_switch = [&main_window, &menu_window, &main_visible, &music]() { 
+        main_window.setVisible(!main_visible);
+        menu_window.setVisible(main_visible);
+        main_visible = !main_visible;
+        if (main_visible) {
+            main_window.requestFocus();
+            music.play();
+            
+        } 
+        else 
+        {
+            menu_window.requestFocus();
+            music.pause();
+        }
+        
+        };
+    
+    win_switcher.setOnClick(f_switch); 
+    main_buttons.push_back(win_switcher);
+    menu_buttons.push_back(win_switcher);
+
+
+
+
+       while (main_window.isOpen() || menu_window.isOpen())
     {
-
-        while (std::optional event = window.pollEvent())
-        {
-
-            if (event->is<sf::Event::Closed>())
-            {
-                window.close();
-            }
-
-
-            if (auto keyEvent = event->getIf<sf::Event::KeyPressed>())
-            {
-                sf::SoundSource::Status status = music.getStatus();
-                if ((keyEvent->code == sf::Keyboard::Key::Space) && status == sf::SoundStream::Status::Paused)
-                {
-                    music.setPlayingOffset(currentPlayingOffset);
-                    music.play(); 
-                }
-                if ((keyEvent->code == sf::Keyboard::Key::Space) && status == sf::SoundStream::Status::Playing)
-                {
-                    currentPlayingOffset = music.getPlayingOffset();
-                    music.pause(); 
-                }
-                if (keyEvent->code == sf::Keyboard::Key::R) 
-                {
-                    music.setPlayingOffset(sf::seconds(0.f));
-                    visualizerX = 0;
-                    currentPlayingOffset = sf::seconds(0.f);
-                    music.play();
-                }
-            }
+        if (main_visible) {
+            mainWindowCycle(main_window, music, viz, main_buttons, MusicText,
+                           visualizerX, column_width, distance_column, circle_radius, currentPlayingOffset);
+        } else {
+            menuWindowCycle(menu_window, menu_buttons);
         }
-        sf::SoundStream::Status status = music.getStatus();
-            switch(static_cast<int>(status)) {
-                case 0: 
-                    StatusText = "Music is stopped";
-                    break;
-                case 1:
-                    StatusText = "Music is paused";
-                    break;
-                case 2:
-                    StatusText = "Music is playing";
-                    break;  
-            }
-        if (music.getPlayingOffset().asSeconds() >= secondsCounter && !(music.getStatus() == sf::Sound::Status::Paused))
-        {
-            currentPlayingOffset = sf::Time(sf::seconds(music.getPlayingOffset().asSeconds()));
-        }
-
-        MusicText.setString(StatusText +"\n Time " + std::to_string(currentPlayingOffset.asSeconds())+"s\n");
-        window.clear(sf::Color::Black);
-        viz.drawBarChart(window, visualizerX, column_width, distance_column );
-        window.draw(MusicText);
-        window.display();
     }
 
     return 0;
 }
+
+
